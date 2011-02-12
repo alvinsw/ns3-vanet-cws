@@ -103,6 +103,13 @@ RsmProtocol::~RsmProtocol() { }
 //   return Seconds(0.0f);
 // }
 
+void RsmProtocol::DoDispose(void )
+{
+  m_contextMap = 0;
+  WsmProtocol::DoDispose();
+}
+
+
 void RsmProtocol::InitiateSending()
 {
   Time t = CalculateStartTime();
@@ -116,7 +123,7 @@ void RsmProtocol::Send()
 {
   Ptr< Node > sender = GetNode();
   uint32_t nid = sender->GetId();
-  NS_LOG_DEBUG ("@" << Simulator::Now().GetSeconds() << " [RsmProtocol::SendBeacon] nid=" << nid);
+  NS_LOG_DEBUG ("@" << Simulator::Now().GetSeconds() << " [RsmProtocol::Send] nid=" << nid);
 
   // retrieve state info
   //Ptr<VehicleMobilityModel> mm = sender->GetObject<VehicleMobilityModel>();
@@ -139,8 +146,8 @@ void RsmProtocol::Send()
 
   Time interval = CalculateInterval();
   //std::cout << "interval=" << interval.GetSeconds() << std::endl;
-  if (interval.IsStrictlyPositive() &&  s_stopTime.IsStrictlyPositive()) {
-    if (Simulator::Now() + interval <= s_stopTime) {
+  if (interval.IsStrictlyPositive()) {
+    if (s_stopTime.IsNegative() || (Simulator::Now() + interval <= s_stopTime)) {
       m_nextTransmission = Simulator::Schedule( interval, &RsmProtocol::Send, this );
     }
   }

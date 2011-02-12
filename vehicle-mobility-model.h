@@ -2,6 +2,7 @@
 #define VEHICLE_MOBILITY_MODEL_H
 
 #include "ns3/nstime.h"
+#include "ns3/node.h"
 #include "ns3/mobility-model.h"
 #include "ns3/constant-position-mobility-model.h"
 
@@ -24,6 +25,8 @@ public:
    */
   VehicleMobilityModel ();
   virtual ~VehicleMobilityModel ();
+  
+  Ptr<Node> GetNode() const;
   
   double GetSpeed() const;
   
@@ -79,9 +82,11 @@ public:
   bool IsActive() const;
   void Activate() const;
   void Deactivate() const;
-  
-  void NotifyCourseChange(void) const {}
-  
+
+protected:
+  virtual void NotifyNewAggregate(void );
+  virtual void DoDispose(void );
+  //void NotifyCourseChange(void) const {}
   
 private:
   virtual Vector DoGetPosition (void) const;
@@ -92,6 +97,7 @@ private:
   //uint32_t m_laneId; // Lane Id which this vehicle belong */
   //** position index of a vehicle in its lane */
   //uint32_t m_indexAtLane;
+  Ptr<Node> m_node;
   Ptr<VehicleMobilityModel> m_follower;
   Ptr<VehicleMobilityModel> m_leader;
   mutable  Time m_lastUpdate;

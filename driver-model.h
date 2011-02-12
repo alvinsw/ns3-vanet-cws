@@ -24,11 +24,11 @@
 #include "vehicle-mobility-model.h"
 #include "driver-input.h"
 #include "road-traffic-scenario.h"
-
+#include "default-parameters.h"
 /**
  * Do nothing driver model. Define a custom driver behaviour by subclassing this class.
  */
-class DriverModel : public SimpleRefCount<DriverModel> {
+class DriverModel : public Object {
 public:
   enum LaneChange { None, Right, Left };
   struct Action {
@@ -38,21 +38,28 @@ public:
     LaneChange laneChange;
     double delay;
   };
+  static TypeId GetTypeId(void);
   
   Ptr<RoadTrafficScenario> GetRTS() const;
   void SetRTS(Ptr<RoadTrafficScenario> rts);
   
-  virtual ~DriverModel() {}
+  DriverModel();
+  virtual ~DriverModel();
   virtual bool CalculateAction(const DriverInput& di, Action& action) const;
-  
+
+protected:
+  virtual void DoDispose(void );
+  // update period in seconds
+  double m_tolerance;
+    
 private:
   Ptr<RoadTrafficScenario> m_rts;
-    
 };
 
 class ConstantSpeedWithBrakingDriverModel : public DriverModel {
   public:
-    ConstantSpeedWithBrakingDriverModel(double minGap_ = 2.0f, double maxDecel_ = 4.9f);
+    static TypeId GetTypeId(void);
+    ConstantSpeedWithBrakingDriverModel(double minGap_ = DP_VEH_MIN_GAP, double maxDecel_ = DP_VEH_DECEL);
     virtual ~ConstantSpeedWithBrakingDriverModel() {}
     virtual bool CalculateAction(const DriverInput& di, Action& action) const;
   protected:
@@ -63,6 +70,7 @@ class ConstantSpeedWithBrakingDriverModel : public DriverModel {
 
 class IdmDriverModel : public DriverModel {
   public:
+    static TypeId GetTypeId(void);
     IdmDriverModel(double desiredSpeed = 33.333f, double timeHeadway = 1.5f, double minimumGap = 2.0f, double maxAccel = 1.0f, double brakeDecel = 2.0f, double maxDecel = 4.9f);
     virtual ~IdmDriverModel() {}
     virtual bool CalculateAction(const DriverInput& di, Action& action) const;
@@ -79,6 +87,7 @@ class IdmDriverModel : public DriverModel {
 
 class MobilDriverModel : public IdmDriverModel {
   public:
+    static TypeId GetTypeId(void);
     /** Pass a reference to idm object that must be guaranteed to be valid for this object life time. */
     MobilDriverModel(const IdmDriverModel& idmRef, double politenessFactor = 0.5f, double maximumSafeDeceleration = 4.0f, double threshold = 0.2f);
     MobilDriverModel(double politenessFactor = 0.5f, double maximumSafeDeceleration = 4.0f, double threshold = 0.2f);
@@ -95,6 +104,7 @@ class MobilDriverModel : public IdmDriverModel {
 /** Avoid collision at the last moment*/
 class SimpleCwsDriverModel : public DriverModel {
   public:
+    static TypeId GetTypeId(void);
     SimpleCwsDriverModel(double minGap_ = 2.0f, double maxDecel_ = 4.9f);
     virtual ~SimpleCwsDriverModel() {}
     virtual bool CalculateAction(const DriverInput& di, Action& action) const;

@@ -21,13 +21,15 @@
 #define DRIVER_INPUT_H
 
 #include "ns3/node.h"
-#include "ns3/ptr.h"
+#include "ns3/object.h"
 #include "vehicle-mobility-model.h"
 #include "road-traffic-scenario.h"
 
 
-class DriverInput : public SimpleRefCount<DriverInput> {
+class DriverInput : public Object {
   public:
+    static TypeId GetTypeId(void);
+    
     struct VehicleState {
       explicit VehicleState(uint32_t nodeId_=0, double gap_=0, float speed_=0, float acceleration_=0) : 
           nodeId(nodeId_), gap(gap_), speed(speed_), acceleration(acceleration_) 
@@ -80,16 +82,20 @@ class DriverInput : public SimpleRefCount<DriverInput> {
     virtual std::pair<bool,bool>  GetLeftLaneVehicles(VehicleState& back, VehicleState& front) const = 0;
     virtual std::pair<bool,bool>  GetRightLaneVehicles(VehicleState& back, VehicleState& front) const = 0;
     
-private:
-  ProjectedVehicleState m_pvs;
-  Ptr<VehicleMobilityModel> m_vmm;
-  Ptr<RoadTrafficScenario> m_rts;
-  Ptr<Node> m_node;
+  protected:
+    virtual void DoDispose(void );
+    
+  private:
+    ProjectedVehicleState m_pvs;
+    Ptr<VehicleMobilityModel> m_vmm;
+    Ptr<RoadTrafficScenario> m_rts;
+    Ptr<Node> m_node;
 };
 
 /** The driver aware of the actual state of up to N leading vehicles */
 class ActualDriverInput : public DriverInput {
   public:
+    static TypeId GetTypeId(void);
     ActualDriverInput(uint32_t maxLeadingVehicles=1, uint32_t maxFollowingVehicles=1);
     virtual ~ActualDriverInput();
     /** Default is 1 */

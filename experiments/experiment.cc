@@ -6,6 +6,8 @@
 #include "ns3/helper-module.h"
 #include "../context-map.h"
 #include "cws-measurement.h"
+#include "../driver-model.h"
+#include "../driver-input.h"
 
 // static Time GetGlobalTime(std::string name) {
 //   TimeValue tv;
@@ -15,6 +17,10 @@
 
 static ns3::GlobalValue g_phyDataRate ("PhyDataRate", "The global data rate in Mbps.",
                                        UintegerValue (6), MakeUintegerChecker<uint32_t> ());
+static ns3::GlobalValue g_driverModel ("DriverModel", "Driver model.",
+                                       StringValue ("ConstantSpeedWithBrakingDriverModel"), MakeStringChecker ());
+static ns3::GlobalValue g_driverInput ("DriverInput", "Driver input.",
+                                       StringValue ("ActualDriverInput"), MakeStringChecker ());
 
 NS_OBJECT_ENSURE_REGISTERED (Experiment);
 NS_LOG_COMPONENT_DEFINE ("Experiment");
@@ -84,6 +90,15 @@ void Experiment::Run()
     NS_LOG_WARN ("[Experiment::Run] Terminated. No node created.");
     return;
   }
+  NS_LOG_DEBUG("[Experiment::Run] reactionTime=" << m_rts->pReactionTimeMin.GetSeconds() << "~" << m_rts->pReactionTimeMax.GetSeconds());
+  StringValue sv;
+  ObjectFactory factory;
+  g_driverModel.GetValue(sv);
+  factory.SetTypeId(sv.Get());
+  m_rts->SetDriverModel(factory.Create<DriverModel>());
+  g_driverInput.GetValue(sv);
+  factory.SetTypeId(sv.Get());
+  m_rts->SetDriverInput(factory.Create<DriverInput>());
   //NS_ASSERT_MSG( m_rts != 0, "Override Experiment::CreateRTS() to not return 0." );
   //NS_LOG_UNCOND(m_rts->ExpectedVehiclesCount() << " " << m_nodesCount);
   //NS_ASSERT( m_rts->ExpectedVehiclesCount() == m_nodesCount );
@@ -98,10 +113,10 @@ void Experiment::Run()
   SetupMeasurement(nodes);
     
   //install context map
-  //ContextMap::Install(nodes);
+  ContextMap::Install(nodes);
 
   //install wsm protocols
-  //InstallWsmProtocols(nodes);
+  InstallWsmProtocols(nodes);
   
   m_rts->AllowsStopSimulation(true); //allows simulation to stop if there are no movement
   if (m_simDuration.IsStrictlyPositive()) {
@@ -113,6 +128,7 @@ void Experiment::Run()
   NS_LOG_INFO("[Experiment::Run] Finish @" << Simulator::Now());
   DumpCurrentVehicleState(nodes);
   PrintOutput();
+  m_rts->Dispose();
   m_rts = 0;
   Simulator::Destroy ();
 
@@ -170,7 +186,7 @@ void Experiment::DumpCurrentVehicleState(const NodeContainer& nodes) const {
     Ptr<VehicleMobilityModel> ml = m->GetLeader();
     int64_t leaderId = -1;
     if (ml) {
-      Ptr<Node> n = ml->GetObject<Node>();
+      Ptr<Node> n = ml->GetNode();
       leaderId = n->GetId();
     }
     NS_LOG_INFO("nodeId="<< i << " laneId=" << m->GetLaneId() << " leader=" << leaderId << 
@@ -197,6 +213,7 @@ void Experiment::PhyStateTrace(Time start, Time duration, WifiPhy::State state) 
 }
 
 void Experiment::CollisionTrace(Ptr< Node > node, double speedAtCollision, double speedDiff) {
+  //NS_LOG_FUNCTION(this << node << speedAtCollision << speedDiff);
   mdata.UpdateCollision(node->GetId(), speedDiff);
 }
 
@@ -253,6 +270,7 @@ void Experiment::PrintOutput() const {
 
 void Experiment::EsmReceived(uint32_t receiverId, uint32_t messageId, Time delay)
 {
+  NS_LOG_DEBUG("@" << Simulator::Now() << " [Experiment::EsmReceived]");
   mdata.UpdateWarningReceived(receiverId, messageId, delay.GetSeconds());
   // schedule brake
   m_rts->InitiateBraking(NodeList::GetNode(receiverId));
@@ -260,10 +278,13 @@ void Experiment::EsmReceived(uint32_t receiverId, uint32_t messageId, Time delay
 
 void Experiment::SendEsm(Ptr< Node > sender, double oldAccel, double newAccel)
 {
-  NS_LOG_DEBUG("[Experiment::SendEsm]");
   if (newAccel <= (-m_rts->pVehicleAbnormalDecel) ) {
     Ptr<EsmProtocol> esmp = sender->GetObject<EsmProtocol>();
-    esmp->SendInitialWarning();
+    //NS_LOG_DEBUG("esmp="<<esmp);
+    if (esmp!=0) {
+      NS_LOG_DEBUG("@" << Simulator::Now() << " [Experiment::SendEsm] nid=" << sender->GetId() << " oldAccel=" << oldAccel << " newAccel=" << newAccel);
+      esmp->SendInitialWarning();
+    }
     //SendInitialWarning(node);
   }
 }
@@ -271,7 +292,7 @@ void Experiment::SendEsm(Ptr< Node > sender, double oldAccel, double newAccel)
 void Experiment::DeactivateNode(Ptr< VehicleMobilityModel > vmm, bool isActive)
 {
   if (!isActive) {
-    Ptr<Node> n = vmm->GetObject<Node>();
+    Ptr<Node> n = vmm->GetNode();
     Object::AggregateIterator ai = n->GetAggregateIterator();
     while (ai.HasNext()) {
       Ptr<Object> o = ConstCast<Object>( ai.Next() );

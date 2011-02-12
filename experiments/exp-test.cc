@@ -30,7 +30,11 @@ TypeId ExpTest::GetTypeId (void)
 }
 
 ExpTest::ExpTest() { 
-  LogComponentEnable("RoadTrafficScenario", LOG_LEVEL_ALL);
+  //LogComponentEnable("RoadTrafficScenario", LOG_LEVEL_ALL);
+  //LogComponentEnable("EsmProtocol", LOG_LEVEL_ALL);
+  //LogComponentEnable("EsmpIbia", LOG_LEVEL_ALL);
+  //LogComponentEnable("RsmProtocol", LOG_LEVEL_ALL);
+  //LogComponentEnable("DriverModel", LOG_LEVEL_ALL);
 }
 
 ExpTest::~ExpTest() { }
@@ -40,9 +44,12 @@ ExpTest::~ExpTest() { }
 Ptr< RoadTrafficScenario > ExpTest::CreateRTS() const
 {
   Ptr<VehicleType> aCar = Create<VehicleType>(4,2,2,"Car");
-  SimpleLane lane1(10, 20.0f, 20.0f);
-  Ptr<HighwayScenario> hs = Create<HighwayScenario>(500, 5, aCar);
+  SimpleLane lane1(5, 30.0f, 32.0f);
+  Ptr<HighwayScenario> hs = Create<HighwayScenario>(5000, 5, aCar);
   hs->AddHighwayLane(lane1, HighwayScenario::RIGHT);
+  hs->PreSetAccident(Seconds(1.0f), 0, 0);
+  //hs->EnablesSmartBraking(false);
+  
   return hs;
   //return 0;
 }

@@ -37,6 +37,7 @@ class RsmProtocol : public WsmProtocol {
     //virtual Time GetMinInterval() const;
     
   protected:
+    virtual void DoDispose(void );
     //PacketReceivedCallback notifyBeaconReceived;
     void Send();
     /** Schedule sending the first message based on the CalculateStartTime method. */

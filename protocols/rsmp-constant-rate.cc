@@ -21,7 +21,7 @@ bool RsmpConstantRate::s_isRandomStart;
 
 TypeId 
 RsmpConstantRate::GetTypeId(void ) {
-  static TypeId tid = TypeId("ns3::RsmpConstantRate")
+  static TypeId tid = TypeId("RsmpConstantRate")
     .SetParent<RsmProtocol> ()
     .AddConstructor<RsmpConstantRate> () 
     ;

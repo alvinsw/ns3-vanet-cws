@@ -19,7 +19,21 @@
 
 #include "driver-input.h"
 #include "lane-path.h"
+#include "ns3/assert.h"
+#include "ns3/log.h"
 
+NS_OBJECT_ENSURE_REGISTERED (DriverInput);
+NS_LOG_COMPONENT_DEFINE ("DriverInput");
+
+TypeId 
+DriverInput::GetTypeId(void )
+{
+  static TypeId tid = TypeId("DriverInput")
+    .SetParent<Object> ()
+    //.AddConstructor<DriverInput> ()
+    ;
+  return tid;
+}
 
 DriverInput::DriverInput() : m_pvs(), m_vmm(), m_rts()
 { }
@@ -33,7 +47,7 @@ void DriverInput::SetHost(Ptr< VehicleMobilityModel > mm, const DriverInput::Pro
 {
   m_vmm = mm;
   m_pvs = state;
-  m_node = mm->GetObject<Node>();
+  m_node = mm->GetNode();
 }
 
 void DriverInput::GetProjectedVehicleState(DriverInput::ProjectedVehicleState& state) const
@@ -102,8 +116,26 @@ DriverInput::AllowsRightLaneChange() const {
   else return false;
 }
 
+void DriverInput::DoDispose(void )
+{
+  m_node = 0;
+  m_rts = 0;
+  m_vmm = 0;
+  Object::DoDispose();
+}
 
 
+NS_OBJECT_ENSURE_REGISTERED (ActualDriverInput);
+
+TypeId 
+ActualDriverInput::GetTypeId(void )
+{
+  static TypeId tid = TypeId("ActualDriverInput")
+    .SetParent<DriverInput> ()
+    .AddConstructor<ActualDriverInput> ()
+    ;
+  return tid;
+}
 
 ActualDriverInput::ActualDriverInput(uint32_t maxLeadingVehicles, uint32_t maxFollowingVehicles) :
     DriverInput(), m_maxLeadingVehicles(maxLeadingVehicles), m_maxFollowingVehicles(maxFollowingVehicles)
@@ -130,7 +162,7 @@ ActualDriverInput::GetFollowingVehicle(DriverInput::VehicleState& state, uint32_
     Ptr<VehicleMobilityModel> mf = m->GetFollower();
     while (mf != 0) {
       if (i==index) {
-        Ptr<Node> n = mf->GetObject<Node>();
+        Ptr<Node> n = mf->GetNode();
         state.nodeId = n->GetId();
         state.acceleration = mf->GetAcceleration();
         state.speed = mf->GetSpeed();
@@ -160,7 +192,7 @@ ActualDriverInput::GetLeadingVehicle(DriverInput::VehicleState& state, uint32_t 
     }
     while (ml != 0) {
       if (i==index) {
-        Ptr<Node> n = ml->GetObject<Node>();
+        Ptr<Node> n = ml->GetNode();
         state.nodeId = n->GetId();
         state.acceleration = ml->GetAcceleration();
         state.speed = ml->GetSpeed();
@@ -204,7 +236,7 @@ ActualDriverInput::GetLaneVehicles(const LanePath& lane, DriverInput::VehicleSta
   }
   if (mback != 0) {
     backExist = true;
-    Ptr<Node> n = mback->GetObject<Node>();
+    Ptr<Node> n = mback->GetNode();
     back.nodeId = n->GetId();
     back.acceleration = mback->GetAcceleration();
     back.speed = mback->GetSpeed();
@@ -212,7 +244,7 @@ ActualDriverInput::GetLaneVehicles(const LanePath& lane, DriverInput::VehicleSta
   }      
   if (mfront != 0) {
     frontExist = true;
-    Ptr<Node> nl = mfront->GetObject<Node>();
+    Ptr<Node> nl = mfront->GetNode();
     front.nodeId = nl->GetId();
     front.acceleration = mfront->GetAcceleration();
     front.speed = mfront->GetSpeed();

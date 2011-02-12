@@ -23,13 +23,12 @@
 #include "ns3/nstime.h"
 #include "ns3/object.h"
 #include "ns3/node-container.h"
-#include "vector-utils.hpp"
+//#include "vector-utils.hpp"
 #include "sae-types.hpp"
-#include "driver-input.h"
 #include "vehicle-mobility-model.h"
 #include "cpp/graph/DirectedGraphAdjacencyList.hpp"
 #include <vector>
-#include <map>
+//#include <map>
 
 using namespace ns3;
 
@@ -92,7 +91,8 @@ class ContextMap : public Object {
     void CalculateSumDL(uint32_t& sumDL, uint32_t& selfDL, uint32_t hostId) const;
     void CalculateDistanceError(Callback< void, double > cb) const;
     
-protected:
+  protected:
+    virtual void DoDispose(void );
     virtual void NotifyNewAggregate(void );
   
   private:
@@ -130,17 +130,5 @@ protected:
     uint32_t m_hostId;
 };
 
-
-
-class CwsDriverInput : public DriverInput {
-  public:
-    CwsDriverInput();
-    virtual ~CwsDriverInput();
-    
-    virtual bool GetLeadingVehicle(VehicleState& state, uint32_t index = 0) const;
-    virtual bool GetFollowingVehicle(VehicleState& state, uint32_t index = 0) const;
-    virtual std::pair<bool,bool> GetLeftLaneVehicles(VehicleState& back, VehicleState& front) const;
-    virtual std::pair<bool,bool> GetRightLaneVehicles(VehicleState& back, VehicleState& front) const;
-};
 
 #endif // CONTEXTMAP_H

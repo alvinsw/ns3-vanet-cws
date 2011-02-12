@@ -18,7 +18,7 @@ VehicleMobilityModel::GetTypeId (void) {
 }
 
 VehicleMobilityModel::VehicleMobilityModel() : 
-    isCollided(false), m_follower(), m_leader(),  //m_indexAtLane(0), m_laneId(0), 
+    isCollided(false), m_node(), m_follower(), m_leader(),  //m_indexAtLane(0), m_laneId(0), 
     m_lastUpdate(), m_position(), m_speed(0), m_acceleration(0),
     m_offsetAlongPath(0), m_type(0), m_lanePath(0),
     m_isActive(true), m_notifyActiveStatusChange()
@@ -26,6 +26,11 @@ VehicleMobilityModel::VehicleMobilityModel() :
 
 VehicleMobilityModel::~VehicleMobilityModel()
 {}
+
+Ptr< Node > VehicleMobilityModel::GetNode() const
+{
+  return m_node;
+}
 
 double 
 VehicleMobilityModel::GetSpeed() const {
@@ -229,3 +234,18 @@ void VehicleMobilityModel::SetActiveStatusChangeCallback(VehicleMobilityModel::A
   m_notifyActiveStatusChange = callback;
 }
 
+void VehicleMobilityModel::NotifyNewAggregate(void )
+{
+  m_node = GetObject<Node>();
+  Object::NotifyNewAggregate();
+}
+
+void VehicleMobilityModel::DoDispose(void )
+{
+  m_node = 0;
+  m_follower = 0;
+  m_leader = 0;
+  m_lanePath = 0;
+  m_type = 0;
+  Object::DoDispose();
+}

@@ -131,6 +131,13 @@ void WsmProtocol::DoReceivePacket(Ptr<Node> node, Ptr<Packet> packet, const Wsmp
   NS_LOG_DEBUG ("@"<<Simulator::Now() << " [WsmProtocol::DoReceivePacket]: Node=" << node->GetId() << " Packet=" << packet);
 }
 
+void WsmProtocol::DoDispose(void )
+{
+  m_node = 0;
+  m_wifiNetDevice = 0;
+  Object::DoDispose();
+}
+
 void WsmProtocol::Initialize(Ptr< Node > node)
 { }
 

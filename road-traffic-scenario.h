@@ -58,13 +58,7 @@ class RoadTrafficScenario : public SimpleRefCount<RoadTrafficScenario> {
       bool isManual;
     };
     
-    static float defaultVehicleAbnormalDecel;
-    static float defaultVehicleNormalDecel;
-    static Time defaultReactionTimeMin;
-    static Time defaultReactionTimeMax;
-    static float defaultMinGap;
-    static Time defaultUpdatePeriod;
-    static double defaultDistanceEpsilon;
+    //static double defaultDistanceEpsilon;
     static bool defaultStopAtEndPoint;
     
     RoadTrafficScenario();
@@ -108,6 +102,9 @@ class RoadTrafficScenario : public SimpleRefCount<RoadTrafficScenario> {
     
     /** Setup given nodes with this scenario. Call this method after setting up everything else. */
     void Install(NodeContainer& nodes);
+    /** Call this method after the simulation finish. */
+    virtual void Dispose();
+    
     //The following methods must be called after Install
     
     /** 

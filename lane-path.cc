@@ -72,13 +72,13 @@ Ptr< VehicleMobilityModel > LanePath::GetBack() const
 }
 void LanePath::Reset()
 {
-  Ptr<VehicleMobilityModel> m = front;
+/*  Ptr<VehicleMobilityModel> m = front;
   while (m!=0) {
     Ptr<VehicleMobilityModel> m1 = m->GetFollower();
     m->SetLeader(0);
     m->SetFollower(0);
     m = m1;
-  }
+  }*/
   front = 0;
   back = 0;
   

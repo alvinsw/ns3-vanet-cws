@@ -19,12 +19,27 @@
 
 #include "driver-model.h"
 #include <cmath>
+#include "ns3/assert.h"
+#include "ns3/log.h"
 
+NS_LOG_COMPONENT_DEFINE ("DriverModel");
 
 
 //DriverModel::Action::Action(double a, DriverModel::LaneChange lc) : acceleration(a), laneChange(lc)
 DriverModel::Action::Action() : acceleration(0.0f), laneChange(None), delay(0.0f)
 { }
+
+NS_OBJECT_ENSURE_REGISTERED (DriverModel);
+TypeId 
+DriverModel::GetTypeId(void) {
+  static TypeId tid = TypeId("DriverModel")
+    .SetParent<Object> ()
+    .AddConstructor<DriverModel> ()
+    ;
+  return tid;
+}
+DriverModel::DriverModel() { }
+DriverModel::~DriverModel() { }
 
 bool 
 DriverModel::CalculateAction(const DriverInput& di, DriverModel::Action& action) const {
@@ -32,22 +47,40 @@ DriverModel::CalculateAction(const DriverInput& di, DriverModel::Action& action)
 }
 
 Ptr< RoadTrafficScenario > DriverModel::GetRTS() const { return m_rts; }
-void DriverModel::SetRTS(Ptr< RoadTrafficScenario > rts) { m_rts = rts; }
+void DriverModel::SetRTS(Ptr< RoadTrafficScenario > rts) { 
+  m_rts = rts; 
+  m_tolerance = rts->pUpdatePeriod.GetSeconds();
+}
+
+void DriverModel::DoDispose(void )
+{
+  m_rts = 0;
+  Object::DoDispose();
+}
 
 
+NS_OBJECT_ENSURE_REGISTERED (ConstantSpeedWithBrakingDriverModel);
+TypeId 
+ConstantSpeedWithBrakingDriverModel::GetTypeId(void) {
+  static TypeId tid = TypeId("ConstantSpeedWithBrakingDriverModel")
+    .SetParent<DriverModel> ()
+    .AddConstructor<ConstantSpeedWithBrakingDriverModel> ()
+    ;
+  return tid;
+}
 
 ConstantSpeedWithBrakingDriverModel::ConstantSpeedWithBrakingDriverModel(double minGap_, double maxDecel_) :
     DriverModel(), minGap(minGap_), maxDecel(maxDecel_)
 { }
 
 bool ConstantSpeedWithBrakingDriverModel::CalculateAction (const DriverInput& di, DriverModel::Action& action) const {
-//   Ptr<Node> node = di.GetVehicle()->GetObject<Node>();
-//   std::cout << node->GetId() << ": ";
+  //NS_LOG_DEBUG ("ConstantSpeedWithBrakingDriverModel::CalculateAction ");
+  double B_a = di.GetVehicleAcceleration();
+  double B_v = di.GetVehicleSpeed();
+  if (B_a <= -maxDecel) return false;
+  if (B_v == 0.0f) return false;
   DriverInput::VehicleState F; //front
   if (di.GetLeadingVehicle(F)) {
-    double B_a = di.GetVehicleAcceleration();
-    double B_v = di.GetVehicleSpeed();
-    if (B_v == 0.0f) return false;
     double F_a = F.acceleration;
     double F_v = F.speed;
     action.delay = 0.0f;
@@ -55,23 +88,35 @@ bool ConstantSpeedWithBrakingDriverModel::CalculateAction (const DriverInput& di
     double rt = di.GetReactionTime().GetSeconds();
     if (F_a < 0.0f || F_v == 0.0f) { // a case where stopping point is predictable: leader is decelerating or not moving
       //find stopping point
-      double F_stopDistance = -0.5 * F_v * F_v / F_a;
+      double F_stopDistance = 0;
+      if (F_a != 0.0f) F_stopDistance = -0.5 * F_v * F_v / F_a;
       double B_v_rt = B_v + B_a * rt;
       if (B_v_rt <= 0.0f) return false;
       double B_s_rt = B_v * rt + 0.5*B_a*rt*rt;
       double B_stopDistance = B_s_rt + 0.5*B_v_rt*B_v_rt / maxDecel;
-      if (F.gap + F_stopDistance - B_stopDistance - minGap > 0.0f) {
+      //NS_LOG_FUNCTION (this << B_v_rt << B_s_rt << F.gap << F_stopDistance << B_stopDistance << minGap);
+      //NS_LOG_DEBUG("total="<<F.gap + F_stopDistance - B_stopDistance - minGap);
+      double toleranceDist = m_tolerance * B_v;
+      double dd = F.gap + F_stopDistance - B_stopDistance - minGap;
+      if ( dd - toleranceDist > 0.0f) {
         return false;
       } else {
         //check scheduled course change
         if (di.GetProjectedVehicleTime().IsStrictlyPositive()) {
           double a = di.GetProjectedVehicleAcceleration();
+          if (a == -maxDecel) {
+            return false;
+          }
           if (a < 0.0f) {
             double v = di.GetProjectedVehicleSpeed();
             double projStopOffset = di.GetProjectedVehicleOffset() + 0.5*v*v / (-a);
+            //double result = F.gap + F_stopDistance - (projStopOffset - di.GetVehicleOffset());
+            //NS_LOG_FUNCTION (this << F.gap << F_stopDistance << projStopOffset << di.GetVehicleOffset());
+            //NS_LOG_DEBUG ("1 result="<<result);
             if (F.gap + F_stopDistance - (projStopOffset - di.GetVehicleOffset()) > 0.0f) return false;
           }
         }
+        if (dd > 0.0f && B_v > 0.0f) action.delay = dd / B_v;
         action.acceleration = -maxDecel;
         return true;
       }
@@ -97,6 +142,15 @@ bool ConstantSpeedWithBrakingDriverModel::CalculateAction (const DriverInput& di
 }
 
 
+NS_OBJECT_ENSURE_REGISTERED (IdmDriverModel);
+TypeId 
+IdmDriverModel::GetTypeId(void) {
+  static TypeId tid = TypeId("IdmDriverModel")
+    .SetParent<DriverModel> ()
+    .AddConstructor<IdmDriverModel> ()
+    ;
+  return tid;
+}
 
 IdmDriverModel::IdmDriverModel(double desiredSpeed, double timeHeadway, double minimumGap, double maxAccel, double brakeDecel, double maxDecel) :
     v0(desiredSpeed), T(timeHeadway), s0(minimumGap), a(maxAccel), b(brakeDecel), max_b(maxDecel), a_exp(4)
@@ -132,6 +186,15 @@ IdmDriverModel::CalculateAcceleration(double v, double dv, double s) const {
   return dvpdt;
 }
 
+NS_OBJECT_ENSURE_REGISTERED (MobilDriverModel);
+TypeId 
+MobilDriverModel::GetTypeId(void) {
+  static TypeId tid = TypeId("MobilDriverModel")
+    .SetParent<DriverModel> ()
+    .AddConstructor<MobilDriverModel> ()
+    ;
+  return tid;
+}
 
 MobilDriverModel::MobilDriverModel(const IdmDriverModel& idmRef, double politenessFactor, double maximumSafeDeceleration, double threshold) :
     IdmDriverModel(idmRef), p(politenessFactor), b_save(maximumSafeDeceleration), a_thr(threshold)
@@ -214,6 +277,15 @@ double MobilDriverModel::CalculateIncentive(bool backExist, const DriverInput::V
 }
 
 
+NS_OBJECT_ENSURE_REGISTERED (SimpleCwsDriverModel);
+TypeId 
+SimpleCwsDriverModel::GetTypeId(void) {
+  static TypeId tid = TypeId("SimpleCwsDriverModel")
+    .SetParent<DriverModel> ()
+    .AddConstructor<SimpleCwsDriverModel> ()
+    ;
+  return tid;
+}
 
 SimpleCwsDriverModel::SimpleCwsDriverModel(double minGap_, double maxDecel_) :
     DriverModel(), minGap(minGap_), maxDecel(maxDecel_)

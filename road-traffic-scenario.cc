@@ -8,19 +8,12 @@
 #include "lane-path.h"
 #include <limits>
 #include <stdexcept>
-
+#include "default-parameters.h"
 
 NS_LOG_COMPONENT_DEFINE ("RoadTrafficScenario");
 
-float RoadTrafficScenario::defaultVehicleAbnormalDecel = 8.0f;
-float RoadTrafficScenario::defaultVehicleNormalDecel = 4.9f;
-Time RoadTrafficScenario::defaultReactionTimeMin = Seconds(1);
-Time RoadTrafficScenario::defaultReactionTimeMax = Seconds(1);
-float RoadTrafficScenario::defaultMinGap = 1.0f;
-Time RoadTrafficScenario::defaultUpdatePeriod = MilliSeconds(50);
-double RoadTrafficScenario::defaultDistanceEpsilon = 0.001f;
+//double RoadTrafficScenario::defaultDistanceEpsilon = 0.001f;
 bool RoadTrafficScenario::defaultStopAtEndPoint = true;
-
 
 RoadTrafficScenario::AccelChangeEvent::AccelChangeEvent ( Time time_, uint32_t laneId_, uint32_t indexAtLane_, float accel_ ) :
         time(time_), laneId(laneId_), indexAtLane(indexAtLane_), accel(accel_)
@@ -42,9 +35,9 @@ RoadTrafficScenario::NodeData::NodeData() : projectedState(), projectedTime(Mill
 RoadTrafficScenario::RoadTrafficScenario() : 
     pAccelChangeEvents(),
     //pVehicleWidth(VEHICLE_W), pVehicleLength(VEHICLE_L), pVehicleSpeed(VEHICLE_SPEED), 
-    pVehicleAbnormalDecel(defaultVehicleAbnormalDecel), pVehicleNormalDecel(defaultVehicleNormalDecel),
-    pReactionTimeMin(defaultReactionTimeMin), pReactionTimeMax(defaultReactionTimeMax), pMinGap(defaultMinGap), 
-    pUpdatePeriod(defaultUpdatePeriod), 
+    pVehicleAbnormalDecel(DP_VEH_MAX_DECEL), pVehicleNormalDecel(DP_VEH_DECEL),
+    pReactionTimeMin(DP_REACTION_TIME_MIN), pReactionTimeMax(DP_REACTION_TIME_MAX), pMinGap(DP_VEH_MIN_GAP), 
+    pUpdatePeriod(DP_MOVEMENT_UPDATE_PERIOD), 
     m_notifyAccelerationChange(), m_notifyCollision(), m_notifyActiveStatusChange(), 
     m_lanes(), m_vehiclesCount(0), 
     m_stopSimulationAllowed(true), m_smartBrakingEnabled(true), m_stopAtEndPoint(defaultStopAtEndPoint),
@@ -54,9 +47,6 @@ RoadTrafficScenario::RoadTrafficScenario() :
 
 RoadTrafficScenario::~RoadTrafficScenario() { 
   //NS_LOG_DEBUG("~RoadTrafficScenario");
-  for (uint32_t laneId=0; laneId<m_lanes.size(); ++laneId) {
-    m_lanes[laneId].path->Reset();
-  }
 }
 
 uint32_t RoadTrafficScenario::ExpectedVehiclesCount() const
@@ -175,6 +165,7 @@ RoadTrafficScenario::CalculateReactionTime(uint32_t nodeId) const {
 void 
 RoadTrafficScenario::Install(NodeContainer& nodes) {
   NS_LOG_DEBUG ("[RoadTrafficScenario::Install] Start");
+  NS_LOG_DEBUG ("[RoadTrafficScenario::Install] UpdatePeriod=" << pUpdatePeriod.GetMilliSeconds() <<"ms");
   NS_ASSERT (nodes.GetN() == 0);
   
   if (m_vehiclesCount <= 0) { //the scenario has not been set up
@@ -211,17 +202,31 @@ RoadTrafficScenario::Install(NodeContainer& nodes) {
   NS_LOG_DEBUG ("[RoadTrafficScenario::Install] Finish");
 }
 
+void RoadTrafficScenario::Dispose()
+{
+  for (uint32_t laneId=0; laneId<m_lanes.size(); ++laneId) {
+    m_lanes[laneId].path->Reset();
+    m_lanes[laneId].path = 0;
+  }
+  m_lanes.clear();
+  //m_driverInput->SetHost(0);
+  //m_driverInput->SetRTS(0);
+  //m_driverModel->SetRTS(0);
+  m_driverInput = 0;
+  m_driverModel = 0;
+}
+
 Ptr< Node > RoadTrafficScenario::GetFollower(Ptr< Node > node) const {
   Ptr<VehicleMobilityModel> model = node->GetObject<VehicleMobilityModel>();
   Ptr<VehicleMobilityModel> mf = model->GetFollower();
-  if (mf) return mf->GetObject<Node>();
+  if (mf) return mf->GetNode();
   return 0;
 }
 
 Ptr< Node > RoadTrafficScenario::GetLeader(Ptr< Node > node) const {
   Ptr<VehicleMobilityModel> model = node->GetObject<VehicleMobilityModel>();
   Ptr<VehicleMobilityModel> ml = model->GetLeader();
-  if (ml) return ml->GetObject<Node>();
+  if (ml) return ml->GetNode();
   return 0;
 }
 
@@ -236,14 +241,7 @@ RoadTrafficScenario::ScheduleNormalBraking(Ptr<Node> node, Time t) {
   ScheduleChangeAcceleration (node, -pVehicleNormalDecel, t);
   m_data[node->GetId()].isManual = true;
 }
-/*
-double 
-RoadTrafficScenario::EstimateCollisionDistance(Ptr<VehicleMobilityModel> m) const {
-  Ptr<Node> n = m->GetObject<Node>();
-  double cd = m_collisionDistance[n->GetId()] - m->GetOffsetAlongPath();
-  return cd;
-}
-*/
+
 void 
 RoadTrafficScenario::InitiateBraking(Ptr< Node > node) {
   if ( m_smartBrakingEnabled ) {
@@ -268,7 +266,8 @@ RoadTrafficScenario::InitiateSmartBraking(Ptr<Node> node) {
   while (leader != 0) {
     RoadTrafficScenario::VehicleState lvs = m_data[leader->GetId()].projectedState;
     if (lvs.acceleration < 0) {
-      double stopOffset = lvs.position - (lvs.speed * lvs.speed * 0.5f / lvs.acceleration);
+      double stopOffset = lvs.position - (lvs.speed * lvs.speed * 0.5f / lvs.acceleration) - vlength;
+      //NS_LOG_DEBUG ("leader=" << leader->GetId() << "stopOffset="<<stopOffset);
       if (stopOffset < minStopOffset) {
         minStopOffset = stopOffset;
         minvlength = vlength;
@@ -279,11 +278,14 @@ RoadTrafficScenario::InitiateSmartBraking(Ptr<Node> node) {
     leader = GetLeader(leader);
   }
   if (minStopOffset < std::numeric_limits<double>::infinity()) {
-    double cd = minStopOffset - (minvlength + pMinGap + mfront->GetLength()/2 + m->GetLength()/2);
+    //NS_LOG_DEBUG (" minStopOffset=" << minStopOffset << ", minvlength="<< minvlength);
+    double cd = minStopOffset - (pMinGap + mfront->GetLength()/2 + m->GetLength()/2);
+    //double cd = minStopOffset - (minvlength + pMinGap + mfront->GetLength()/2 + m->GetLength()/2);
     Time rt = CalculateReactionTime(nid);
     double v = m->GetSpeed();
     double reactionDistance = v * rt.GetSeconds();
-    double decel = 0.5f * v * v / (cd - reactionDistance);
+    //double decel = 0.5f * v * v / (cd - reactionDistance);
+    double decel = 0.5f * v * v / (cd - m->GetOffsetAlongPath() - reactionDistance);
     //if (decel < 0 || decel > pVehicleNormalDecel) decel = pVehicleNormalDecel;
     if (decel > pVehicleNormalDecel) decel = pVehicleNormalDecel;
     NS_LOG_DEBUG ("@" << Simulator::Now() << " [RoadTrafficScenario::InitiateSmartBraking] nodeId=" << nid << ", decel="<< decel << ", cd="<<cd <<" v="<<v<<" rt="<<rt );
@@ -304,6 +306,7 @@ void RoadTrafficScenario::ChangeAcceleration(Ptr< Node > node, double newAcceler
 
 void RoadTrafficScenario::ScheduleChangeAcceleration(Ptr< Node > node, double newAcceleration, Time t)
 {
+  NS_LOG_DEBUG ("@" << Simulator::Now() << " [RoadTrafficScenario::ScheduleChangeAcceleration] nodeId=" << node->GetId() << " a=" << newAcceleration << " t=" << t);
   //m_isManual[node->GetId()] = true;
   if (t.IsZero()) {
     ChangeAcceleration(node, newAcceleration);
@@ -360,7 +363,7 @@ RoadTrafficScenario::UpdateLane(RoadTrafficScenario::Lane& lane) {
   Ptr<VehicleMobilityModel> m = lane.path->GetFront();
   uint32_t indexAtLane = 0;
   while (m!=0) {
-    Ptr<Node> n = m->GetObject<Node>();
+    Ptr<Node> n = m->GetNode();
     uint32_t nid = n->GetId();
     //NS_LOG_DEBUG (Simulator::Now().GetSeconds() << " [RoadTrafficScenario::Lane::Update] nid="<< nid);
     if (m->IsActive()) {
@@ -383,7 +386,7 @@ RoadTrafficScenario::UpdateLane(RoadTrafficScenario::Lane& lane) {
         DriverModel::Action action;
         //if (hasAction && (action.acceleration != m->GetAcceleration())) {
         if (m_driverModel->CalculateAction(*m_driverInput, action)) {
-          //NS_LOG_DEBUG ("@" << Simulator::Now().GetSeconds() << "nodeId=" << nid << "action.acceleration="<<action.acceleration);
+          //NS_LOG_DEBUG ("@" << Simulator::Now().GetSeconds() << " [RoadTrafficScenario::Lane::Update] ScheduleChangeAcceleration nodeId=" << nid << " action.acceleration="<<action.acceleration<<" action.delay="<<action.delay);
           Time t = CalculateReactionTime(nid) + Seconds(action.delay);
           ScheduleChangeAcceleration ( n, action.acceleration, t );
         }
@@ -429,7 +432,7 @@ RoadTrafficScenario::FindNodeId(uint32_t laneId, uint32_t indexAtLane) const {
     uint32_t i = 0;
     while (m!=0) {
       if (i == indexAtLane) {
-        Ptr<Node> n = m->GetObject<Node>();
+        Ptr<Node> n = m->GetNode();
         return n->GetId();
       }
       m = m->GetFollower();

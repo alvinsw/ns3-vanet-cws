@@ -79,6 +79,7 @@ class WsmProtocol : public Object {
     //void SetTxPowerLevel(uint8_t txPowerLevel);
        
   protected:
+    virtual void DoDispose(void );    
     /** This method will be called by Install() method */
     virtual void Initialize(Ptr<Node> node);
     

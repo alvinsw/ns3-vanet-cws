@@ -11,25 +11,18 @@
 /** Represents unique warning message for every emergency event */
 struct Esm : public SimpleRefCount<Esm> {
   static const uint32_t MAX_COUNT = 10000;
-  static uint32_t CreateMessageId(uint32_t origin, uint32_t event) {
-    return origin * MAX_COUNT + event;
-  }
+  static uint32_t CreateMessageId(uint32_t origin, uint32_t event);
   
-  Esm (uint32_t origin = 0, uint32_t event = 0) : 
-      originId(origin), eventId(event), scheduledEvent(), sentMessages(0), originTimestamp() 
-  {
-    NS_ASSERT(origin < MAX_COUNT);
-    NS_ASSERT(event < MAX_COUNT);
-  }
-  virtual ~Esm() {}
-  uint32_t GetMessageId() const {
-    return originId * MAX_COUNT + eventId;
-  }
+  Esm (uint32_t origin = 0, uint32_t event = 0, Time originTime = MilliSeconds(0));
+  virtual ~Esm();
+  uint32_t GetMessageId() const;
+  virtual void DoDispose();
+  
   uint32_t originId;
   uint32_t eventId;
-  EventId scheduledEvent;
   uint32_t sentMessages;
   Time originTimestamp;
+  EventId scheduledEvent;
   //bool keepBroadcasting; //should a node keep sending this message?
 };
 
@@ -61,28 +54,30 @@ class EsmProtocol : public WsmProtocol {
     virtual void SendInitialWarning();
     
   protected:
+    virtual void DoDispose(void );    
     /** Get msg history with current event id */
     Ptr<Esm> GetLastEvent(); 
     Ptr<Esm> CreateNewEvent();
     Ptr<Esm> GetHistory(uint32_t messageId); 
     Ptr<Esm> GetHistory(uint32_t originId, uint32_t eventId); 
     Ptr<Esm> AddHistory(uint32_t originId, uint32_t eventId); 
+    void AddHistory(Ptr<Esm> esm); 
     
-    virtual Ptr<Esm> CreateEsm(uint32_t originId, uint32_t eventId);
+    virtual Ptr<Esm> CreateEsm(uint32_t originId, uint32_t eventId, Time originTime);
     virtual void DoReceivePacket (Ptr<Node> node, Ptr<Packet> packet, const WsmpHeader& wsmpHeader);
     virtual void AddReceivers(Ptr<Esm> esm, EsmpHeader& esmpHeader);
     
-    //** This method will handle the statistic update, and also make the vehicle brake. */
-    //void ExecuteWarning(Ptr<Node> receiver, Ptr<Esm> esm);
-    
+    //** This method calls RecvCallback that should handle the statistic update, and also make the vehicle brake. */
+    //void NotifyReceived(uint32_t messageId, Time delayFromOrigin);
     
     /** Do NOT use the packet pointer after calling this method!!! */
     virtual void SendEsm(Ptr<Esm> esm);
     /** 
      * Override this method to process warning. Warning header has been removed from the packet.
-     * Return true will result in calling the NotifyEsmReceived afterwards.
+     * Return true will result in calling the RecvCallback afterwards.
      */
     virtual bool ReceiveEsm(Ptr<Node> receiver, Ptr<Packet> packet, const WsmpHeader& wsmpHeader, const EsmpHeader& esmpHeader, const DsrcBsmHeader& bsmHeader);
+    
 
   typedef std::map<uint32_t, Ptr<Esm> > THistory;
     /** Warning message packet size in bytes */
@@ -104,7 +99,7 @@ class EsmpInstantaneous : public EsmProtocol {
     EsmpInstantaneous();
     virtual ~EsmpInstantaneous();
     
-    virtual void SendInitialWarning(Ptr< Node > n);
+    virtual void SendInitialWarning();
 };
 
 
